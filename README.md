@@ -1,56 +1,101 @@
 # **Finding Lane Lines on the Road** 
-[![Udacity - Self-Driving Car NanoDegree](https://s3.amazonaws.com/udacity-sdc/github/shield-carnd.svg)](http://www.udacity.com/drive)
 
-<img src="examples/laneLines_thirdPass.jpg" width="480" alt="Combined Image" />
+### Goal
 
-Overview
+The goals of this project are the following:
+* Make a pipeline that finds lane lines on the road
+* Reflect on your work in a written report
+
+
+[//]: # (Image References)
+
+[image1]: ./examples/grayscale.jpg "Grayscale"
+
 ---
 
-When we drive, we use our eyes to decide where to go.  The lines on the road that show us where the lanes are act as our constant reference for where to steer the vehicle.  Naturally, one of the first things we would like to do in developing a self-driving car is to automatically detect lane lines using an algorithm.
+### Reflection
 
-In this project you will detect lane lines in images using Python and OpenCV.  OpenCV means "Open-Source Computer Vision", which is a package that has many useful tools for analyzing images.  
+### 1. Main pipeline. 
 
-To complete the project, two files will be submitted: a file containing project code and a file containing a brief write up explaining your solution. We have included template files to be used both for the [code](https://github.com/udacity/CarND-LaneLines-P1/blob/master/P1.ipynb) and the [writeup](https://github.com/udacity/CarND-LaneLines-P1/blob/master/writeup_template.md).The code file is called P1.ipynb and the writeup template is writeup_template.md 
+My pipeline consisted of 6 steps. 
 
-To meet specifications in the project, take a look at the requirements in the [project rubric](https://review.udacity.com/#!/rubrics/322/view)
+1. I converted the images to grayscale if necessay.
+<img src="./test_images_work/solidWhiteCurve_gray.jpg" width="480" alt="Gray" />
+
+2. I applied Gaussian Blur on the gray image.
+<img src="./test_images_work/solidWhiteCurve_blur.jpg" width="480" alt="Blur" />
+
+3. Then I applied Canny filter to do edge detection.
+<img src="./test_images_work/solidWhiteCurve_edges.jpg" width="480" alt="Edges" />
+
+4. I masked edge with a predefined interested region.
+<img src="./test_images_work/solidWhiteCurve_masked.jpg" width="480" alt="Mask" />
+
+5. I applied hough transform to find straight line segments
+<img src="./test_images_work/solidWhiteCurve.jpg" width="480" alt="Hough Lines" />
+
+6. I used reduce_lines() function to reduce all straight line segments into the signle left and the signle right lane lines.
+<img src="./test_images_output/solidWhiteCurve.jpg" width="480" alt="Final" />
+
+### 2. Reduce lines pipeline. 
+
+reduce_lines() function is to reduces all straight line segments into the signle left and the signle right lane lines.  It consists 3 steps.   We also reversed y coordinate updown, so that y=0 is corresponding to the bottom line of the image.
+
+Step 1. I converted all line segment (x1, y1, x2, y2) into parameter form (x0, theta, line_length), where x0 is the line cross x-position at y=0, theta is the angle between line and x-axis, and line_length is the length of the line segment.  So that, line equation is $y = (x-x0) * tan(theta)$
+
+```
+
+            Y ^ 
+              |       * (x2, y2)
+              |      /
+              |     * (x1, y1)
+              |    /
+              |   / theta
+        (0,0) |------------> X
+                (x0,0)
+
+```
+
+Step 2. I filtered out the invaid line segments by a predined x0 range and theta range.  For the left line, $x0$ sholud be between $0.05 * image\_width$ and $0.30 * image\_width$ and $theta$ should be between 20 and 45 degrees.  Similarly, for the right line, $x0$ sholud be between $0.70 * image\_width$ and $0.95 * image\_width$ and $theta$ should be between 135 and 160 degrees.  The following image shows the boundary of valid regions.
+
+left valid region<img src="./test_images_work/solidWhiteCurve_left_rgn.jpg" width="480" alt="Edges" />
+
+right valid region<img src="./test_images_work/solidWhiteCurve_right_rgn.jpg" width="480" alt="Edges" />
+
+Step 3. We average the line crose angle (theta) and x-position (x0) intead of coefficients. We used the line segment length as its weight. After average, we draw the average lines from $y=0$ to $y=0.4 * image\_height$.
+<img src="./test_images_output/solidWhiteCurve.jpg" width="480" alt="Final" />
+
+### 3. Improved part for the challenge video. 
+
+The edge dectection in the challenge video became more difficult because
+
+1. there are a lot of shadows of trees
+2. the road color is not so uniformed
+3. the constrast of the left yellow land is not so obvious
+4. the right land is not always clearly visible.
+
+The first and second causes are not so critical. Most of their edges are filtered out because their orientation. Even they has similar orientation as the lane line, it has a small weight of averaging because of its short length.
+
+For the third pard, because yellow line is different color from the road, it would be easier to seperate on color space. So our ad hoc method is convert color image into a hsv image instead a gray image. Then we do edge detect in H, S, V domain image seperately. All detected edges are the candidates of the reduce_lines() function.  It is implemented in our project.
+
+The fourth may be able be handled by dynamic threshold to do edge detection.
+
+### 4. Identify potential shortcomings with your current pipeline
 
 
-Creating a Great Writeup
----
-For this project, a great writeup should provide a detailed response to the "Reflection" section of the [project rubric](https://review.udacity.com/#!/rubrics/322/view). There are three parts to the reflection:
+For code simplicity, we used a lot of hard coded parameters.  The edge detetction is not so robustly when the edge constrast is not so clearly. The interested region is also hard coded.  It may fail if the camera is moved.  The algorithm of reduce_lines() is not well mathmatically defined.  It may be defined more precisely. 
 
-1. Describe the pipeline
+Furthermore, we assumed lane line existed. We didn't handle the extraordinary cases such as without lane line.
 
-2. Identify any shortcomings
-
-3. Suggest possible improvements
-
-We encourage using images in your writeup to demonstrate how your pipeline works.  
-
-All that said, please be concise!  We're not looking for you to write a book here: just a brief description.
-
-You're not required to use markdown for your writeup.  If you use another method please just submit a pdf of your writeup. Here is a link to a [writeup template file](https://github.com/udacity/CarND-LaneLines-P1/blob/master/writeup_template.md). 
+We didn't use temporary time-frame relation. The temporary time-frames should be highly related.  The system would become much robustness if we well use temporary time-frames.
 
 
-The Project
----
+### 5. Suggest possible improvements to your pipeline
 
-## If you have already installed the [CarND Term1 Starter Kit](https://github.com/udacity/CarND-Term1-Starter-Kit/blob/master/README.md) you should be good to go!   If not, you should install the starter kit to get started on this project. ##
+A possible improvement is to remove the hard coded parameters.  Instead, it should use the dynamic parameters determined by the previous time frames.    For examples, we can use the standard devation of image intensity to determine the Canny filter threshold.    
 
-**Step 1:** Set up the [CarND Term1 Starter Kit](https://classroom.udacity.com/nanodegrees/nd013/parts/fbf77062-5703-404e-b60c-95b78b2f3f9e/modules/83ec35ee-1e02-48a5-bdb7-d244bd47c2dc/lessons/8c82408b-a217-4d09-b81d-1bda4c6380ef/concepts/4f1870e0-3849-43e4-b670-12e6f2d4b7a7) if you haven't already.
+The interested mask region also tracked by the following time frames.  It should be able handle the camera small vibration issue when car moving.
 
-**Step 2:** Open the code in a Jupyter Notebook
+If there is no existed lane line, the system should be able to detect it and call the $no\_lane\_line$ handle routine.
 
-You will complete the project code in a Jupyter notebook.  If you are unfamiliar with Jupyter Notebooks, check out <A HREF="https://www.packtpub.com/books/content/basics-jupyter-notebook-and-python" target="_blank">Cyrille Rossant's Basics of Jupyter Notebook and Python</A> to get started.
-
-Jupyter is an Ipython notebook where you can run blocks of code and see results interactively.  All the code for this project is contained in a Jupyter notebook. To start Jupyter in your browser, use terminal to navigate to your project directory and then run the following command at the terminal prompt (be sure you've activated your Python 3 carnd-term1 environment as described in the [CarND Term1 Starter Kit](https://github.com/udacity/CarND-Term1-Starter-Kit/blob/master/README.md) installation instructions!):
-
-`> jupyter notebook`
-
-A browser window will appear showing the contents of the current directory.  Click on the file called "P1.ipynb".  Another browser window will appear displaying the notebook.  Follow the instructions in the notebook to complete the project.  
-
-**Step 3:** Complete the project and submit both the Ipython notebook and the project writeup
-
-## How to write a README
-A well written README file can enhance your project and portfolio.  Develop your abilities to create professional README files by completing [this free course](https://www.udacity.com/course/writing-readmes--ud777).
 
